@@ -1,4 +1,4 @@
-version: '3'
+version: '3.3'
 services:
   sinatra-app:
     build:
@@ -6,7 +6,38 @@ services:
       dockerfile: Dockerfile
     ports: 
       - "4567:4567"
+    networks: 
+      - sinatra
+    depends_on: 
+      - db
+    environment:
+      - HOST=0.0.0.0
+      - PORT=4567
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=sinatraapp
+      - POSTGRES_PASSWORD=sinatraapppassword
+      - POSTGRES_DB=sinatradb
+  
   test:
     build:
       dockerfile: Dockerfile-test
-  
+    networks: 
+      - sinatra
+
+  db:
+    image: postgres:13.3
+    environment:
+      - POSTGRES_USER=sinatraapp
+      - POSTGRES_PASSWORD=sinatraapppassword
+      - POSTGRES_DB=sinatradb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: 
+        - sinatra
+
+volumes:
+  pgdata:
+
+networks:
+  sinatra:
+    driver: bridge

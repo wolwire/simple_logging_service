@@ -1,7 +1,7 @@
 require 'sinatra'
 require 'json'
 require 'fileutils'
-require 'sqlite3'
+require 'pg'
 require 'thread'
 
 module LogFileOperations
@@ -31,7 +31,12 @@ module LogFileOperations
       unix_ts = data['unix_ts']
       user_id = data['user_id']
       event_name = data['event_name']
-      db.execute('INSERT INTO event_logs (unix_ts, user_id, event_name) VALUES (?, ?, ?)', [unix_ts, user_id, event_name])
+      insert_query = <<-SQL
+        INSERT INTO event_logs (unix_ts, user_id, event_name)
+        VALUES ($1, $2, $3)
+      SQL
+
+      db.exec_params(insert_query, [unix_ts, user_id, event_name])
     end
     truncate_file
   end
@@ -40,26 +45,25 @@ end
 # Define the file path
 file_path = 'log_data.txt'
 
-# Define the maximum file size in bytes (10 MB)
-max_file_size = 10 * 1024 * 1024
 
-# Define the rotation interval in seconds
+max_file_size = 10 * 1024
+
 rotation_interval = 30
 
-# Set up the database connection
-db = SQLite3::Database.new('event_logs.db')
+db = PG.connect(host: ENV['POSTGRES_HOST'], dbname: ENV['POSTGRES_DB'], user: ENV['POSTGRES_USER'], password: ENV['POSTGRES_PASSWORD'])
 
 # Create a table if it doesn't exist
-db.execute <<-SQL
+create_table_query = <<-SQL
   CREATE TABLE IF NOT EXISTS event_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     unix_ts INTEGER,
     user_id INTEGER,
     event_name TEXT
   );
 SQL
 
-# Set up file lock and operations
+db.exec_params(create_table_query)
+
 LogFileOperations.setup_file_lock(file_path)
 
 # Define a POST endpoint for logging events
@@ -79,7 +83,6 @@ post '/log' do
   'Event logged successfully'.to_json
 end
 
-# Start a background thread for log rotation
 Thread.new do
   loop do
     sleep(rotation_interval)
@@ -92,6 +95,6 @@ Thread.new do
 end
 
 # Start the server
-set :bind, '0.0.0.0' # Bind to all network interfaces
-set :port, 4567      # Set the port number
+set :bind, ENV['HOST'] # Bind to all network interfaces
+set :port, ENV['PORT']      # Set the port number
 
