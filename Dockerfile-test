@@ -1,0 +1,7 @@
+FROM ruby:latest
+
+WORKDIR /app
+
+COPY ./apitester.sh ./
+
+CMD ["/bin/bash", "-lc", "./apitester.sh"]
